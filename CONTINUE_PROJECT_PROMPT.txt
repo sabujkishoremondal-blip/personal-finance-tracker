@@ -1,0 +1,93 @@
+[HANDOFF PROMPT — paste this into a new Emergent workspace when continuing this project]
+
+You are picking up a COMPLETE Streamlit personal-finance app.
+DO NOT rebuild from scratch. The code is already written, tested and running.
+Your job is to iterate on features and bugs the user asks for.
+
+WHAT IS THIS PROJECT
+--------------------
+A polished, mobile-first personal expense tracker built with:
+    Python 3.11 + Streamlit 1.40 + SQLite + Plotly + Tesseract OCR
+    bcrypt + PyJWT for custom auth
+    FastAPI stub (webhook_server.py) for a future Twilio WhatsApp integration (MOCKED)
+
+Every finance row is scoped by user_id. Balance is DERIVED from transactions —
+never stored. Read PROJECT_HANDOFF.md fully before doing anything.
+
+FIRST THING TO DO IN THE NEW WORKSPACE
+--------------------------------------
+1. Unzip this project's zip into /app (or the workspace root).
+2. Install system + python deps:
+       sudo apt-get install -y tesseract-ocr
+       pip install -r requirements.txt
+3. Start it:
+       streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+   (or wire it into your platform's supervisor / run command)
+4. Log in with the seeded demo account:
+       demo@example.com  /  demo123
+5. Read /app/PROJECT_HANDOFF.md end-to-end. It documents:
+       - all features
+       - business rules (the invariants — DO NOT break them)
+       - full file/module map
+       - database schema
+       - deployment options
+       - known limitations & backlog
+
+THINGS TO KNOW BEFORE TOUCHING CODE
+-----------------------------------
+- All service functions require user_id as the first arg. Do not remove that.
+- Available balance is a pure function of the transactions table. If you find
+  yourself storing a "current_balance" number anywhere, you are wrong.
+- Borrowed money increases the wallet AND records a debt. Money friends owe
+  does NOT change the wallet until marked received. Do not merge these.
+- Negative balances are allowed. Never block an expense insert on balance.
+- Streamlit widget keys can't be reassigned after the widget renders. To
+  change the sidebar `nav` radio from a button, set st.session_state["_pending_nav"]
+  and st.rerun(); app.py picks it up on next run (see app.py sidebar block).
+- OCR is best-effort; users MUST confirm before saving.
+- Auth is Streamlit-session-state driven (not cookies). JWT tokens exist only
+  for the future Twilio webhook to identify a user from their WhatsApp number.
+- Recurring rules use `last_run` for idempotency. Never post the same due-date twice.
+
+WHAT IS NOT DONE (opportunities for you)
+----------------------------------------
+- Live Twilio WhatsApp receiving is wired but MOCKED. To activate: add
+  TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN and run webhook_server.py on a
+  public URL, then point the Twilio Sandbox at <host>:8002/whatsapp/inbound.
+- Password reset by email (needs SendGrid / Resend integration).
+- LLM-generated savings narrative (Emergent LLM key — currently rule-based).
+- Family / shared-wallet mode.
+- Mobile bottom-nav FAB.
+
+TESTING
+-------
+- Iteration 1 (pre-auth): 100% pass — 8/8 balance-math + 1 E2E.
+- Iteration 2 (auth + isolation + recurring + quick-add): 100% pass, 12/12 flows.
+Do not regress these when adding features. Retest after each change.
+
+DESIGN
+------
+Two themes, both custom-CSS'd (see components/theme.py):
+    light  = ivory  #F2F2ED + burgundy #8F002B
+    dark   = navy   #0E1220 + burgundy accents
+Fonts: Fraunces (display) + Manrope (body).
+Do NOT let the app look like default Streamlit.
+Cards stack on mobile (≤640px), grid on desktop.
+
+DEMO DATA
+---------
+Auto-seeded on first launch for the demo user:
+    starting balance ₹2,000
+    +₹500 balance addition
+    10 expenses (~₹1,950) across all categories
+    one borrow (Rahul ₹500), one lent (Priya ₹400)
+Expected available balance immediately after demo login: ₹1,050.
+
+IF YOU BREAK SOMETHING
+----------------------
+1. Reset a single user: Settings → Danger zone → "Reset my data".
+2. Or nuke everything: delete /app/data/finance.db and /app/data/.jwt_secret,
+   restart Streamlit — demo user + seed run again automatically (see
+   app.py :: _ensure_demo_user).
+
+CONTINUE FROM HERE. Ship the user's next feature request.
