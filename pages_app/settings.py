@@ -109,14 +109,34 @@ def _categories_section(uid):
                      use_container_width=True):
             delete_category(uid, c["name"])
             st.rerun()
+    st.markdown("**Add new category**")
     with st.form("add_cat_form", clear_on_submit=True):
-        a, b, c = st.columns([3, 1, 1])
-        with a: new_name = st.text_input("New category name")
-        with b: new_icon = st.text_input("Icon", value="📦")
-        with c: st.markdown("&nbsp;", unsafe_allow_html=True)
-        if st.form_submit_button("Add category"):
-            if new_name.strip():
-                add_category(uid, new_name.strip(), new_icon or "📦")
+        a, b = st.columns([3, 1])
+        with a:
+            new_name = st.text_input(
+                "Category name",
+                placeholder="e.g. Groceries, Transport, Health, Bills",
+                label_visibility="collapsed",
+                key="new_cat_name",
+            )
+        with b:
+            new_icon = st.text_input(
+                "Icon",
+                value="📦",
+                max_chars=4,
+                label_visibility="collapsed",
+                key="new_cat_icon",
+            )
+        st.caption("Tip: paste any emoji for the icon (🏠 🚗 💊 🎁 …)")
+        if st.form_submit_button("＋ Add category", use_container_width=True):
+            name = new_name.strip()
+            if not name:
+                st.error("Please enter a category name.")
+            elif name.lower() in [c["name"].lower() for c in list_categories(uid)]:
+                st.error(f"'{name}' already exists.")
+            else:
+                add_category(uid, name, new_icon.strip() or "📦")
+                st.success(f"Added '{name}'.")
                 st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 

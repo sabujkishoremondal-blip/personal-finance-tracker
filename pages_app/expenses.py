@@ -5,7 +5,7 @@ from PIL import Image
 from components.cards import empty_state
 from services.expense_service import (
     add_expense, update_expense, delete_expense, list_expenses,
-    list_categories, category_icon,
+    list_categories, add_category, category_icon,
 )
 from services.balance_service import add_balance, available_balance
 from services import ocr_service
@@ -24,6 +24,33 @@ def _cat_options():
 
 def _cat_pretty(name: str) -> str:
     return f"{category_icon(_uid(), name)}  {name}"
+
+
+def _inline_new_category():
+    uid = _uid()
+    with st.form("inline_add_cat", clear_on_submit=True):
+        a, b = st.columns([3, 1])
+        with a:
+            name = st.text_input(
+                "Name", placeholder="e.g. Groceries, Transport, Health",
+                label_visibility="collapsed", key="inline_cat_name",
+            )
+        with b:
+            icon = st.text_input(
+                "Icon", value="📦", max_chars=4,
+                label_visibility="collapsed", key="inline_cat_icon",
+            )
+        st.caption("Paste any emoji as the icon (🏠 🚗 💊 🎁 …). You can add many.")
+        if st.form_submit_button("＋ Create category", use_container_width=True):
+            n = name.strip()
+            if not n:
+                st.error("Please enter a name.")
+            elif n.lower() in [c["name"].lower() for c in list_categories(uid)]:
+                st.error(f"'{n}' already exists.")
+            else:
+                add_category(uid, n, icon.strip() or "📦")
+                st.success(f"Added '{n}'. Choose it in the category dropdown below.")
+                st.rerun()
 
 
 def _add_expense_form(prefill: dict | None = None, key_prefix: str = "add"):
@@ -128,6 +155,10 @@ def render():
 
     st.markdown("<h1 style='margin-bottom:0'>Expenses</h1>", unsafe_allow_html=True)
     st.caption("Track your spending. Add manually or scan a payment screenshot.")
+
+    # Inline create-category helper — usable from any expense form on this page
+    with st.expander("＋ New category", expanded=False):
+        _inline_new_category()
 
     tab_add, tab_bal, tab_ocr, tab_hist = st.tabs(
         ["＋ Add Expense", "＋ Add Balance", "📷 Scan Screenshot", "🧾 History"]
