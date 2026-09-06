@@ -1,48 +1,64 @@
 # Personal Finance (Streamlit) — PRD
 
-## Original problem statement (summary)
-Build a polished, mobile-first personal expense tracking web app using **Python + Streamlit + SQLite + Plotly + Tesseract OCR**. Two-way money tracking (balance, expenses, borrow, lend), monthly reports, budgets and rule-based savings recommendations. INR default, dark/light theme toggle, seeded demo data on first launch.
+## Vision
+A polished, mobile-first personal money command center. Track balance, expenses, borrows/lends, monthly reports, budgets, and get rule-based savings recommendations. Now multi-user with **JWT auth**, **recurring expenses**, and a **WhatsApp-style Quick Add** (with a mocked Twilio webhook ready for later go-live).
 
-## User personas
-- Single user, personal money management.
-- Uses phone as primary device, occasionally desktop.
-- Needs fast expense entry, monthly analysis and clarity on who owes whom.
+## Tech stack
+Python 3.11 · Streamlit 1.40 · SQLite · Plotly · Pillow · Tesseract OCR (pytesseract) · bcrypt · PyJWT · FastAPI (webhook stub only).
 
 ## Core requirements (static)
-1. SQLite persistence — never lose data on rerun.
-2. Balance derived from transactions (no mutable stored value).
-3. Borrowed money increases balance; money friends owe does NOT increase balance until received.
-4. Negative balance allowed with clear warning; user never blocked.
-5. Screenshot OCR extracts amount / merchant / date / suggested category; user MUST confirm before saving.
-6. Mobile-first responsive, no horizontal scroll.
-7. INR (₹) default, currency switchable.
-8. Light (ivory + burgundy) and dark (navy + burgundy) themes with runtime toggle.
+1. SQLite persistence, single source of truth. Balance derived from transactions.
+2. Multi-user with fully isolated data (user_id foreign key on every finance table).
+3. JWT-based auth (email + password, bcrypt). Session state in Streamlit.
+4. Borrowed money increases balance; money friends owe does NOT until received.
+5. Negative balance allowed with clear warning; user never blocked.
+6. Payment-screenshot OCR extracts amount / merchant / date / suggested category; user confirms before saving.
+7. Quick Add: natural-language parser (`Lunch 180 Food` → expense) usable in-app and via a WhatsApp webhook stub.
+8. Recurring expenses auto-post on due dates (checked once per session).
+9. Mobile-first responsive layout, no horizontal scroll.
+10. Currency selectable (INR default). Light (ivory + burgundy) and dark (navy + burgundy) themes.
 
 ## Implemented (2026-09-06)
-- **Architecture**: modular — `app.py` entry, `database/`, `services/`, `pages_app/`, `components/`, `utils/`.
-- **Database (SQLite)**: `expenses`, `balance_transactions`, `debts`, `categories`, `budgets`, `app_settings`. Auto-init and seed default categories on first launch.
-- **Dashboard**: hero balance card (light/dark burgundy gradient), 4 stat cards, 4 quick actions, category donut, recent transactions.
-- **Expenses page**: 4 tabs — Add Expense, Add Balance, Scan Screenshot (Tesseract), History (filter/sort/search + edit/delete popover).
-- **Borrow & Lend**: 3 tabs (I Borrowed, Friends Owe Me, + Add Entry). Confirm dialog before repay/receive. Balance math verified.
-- **Reports**: metrics, donut, horizontal bar, monthly-trend line, MoM comparison narrative, rule-based savings tips with potential monthly saving and per-category next-month targets.
-- **Budget & Goals**: total + per-category budgets, progress bars, over-budget warnings.
-- **Settings**: name, currency (7 options), theme, starting balance, category CRUD, JSON+CSV export, JSON import, database reset with two-step confirmation.
-- **Theme**: custom CSS with two palettes, Fraunces (display) + Manrope (body) fonts, no default Streamlit look.
-- **OCR**: Tesseract-based extraction with amount / merchant / date / category heuristics. Manual override always allowed.
-- **Demo data**: auto-seeds ~10 expenses, +₹500 balance, one borrow (Rahul ₹500), one lent (Priya ₹400) into the current month. Available balance on fresh install = ₹1,050.
-- **Deployment**: `packages.txt` for Streamlit Cloud (tesseract-ocr), `.streamlit/config.toml`, README with Replit + Streamlit Cloud instructions. Running in Emergent preview via supervisor on port 3000.
+### Foundations
+- Modular architecture — `app.py`, `database/`, `services/`, `pages_app/`, `components/`, `utils/`.
+- SQLite schema: users, categories, expenses, balance_transactions, debts, budgets, recurring_expenses, app_settings, whatsapp_messages — every finance row has `user_id`.
 
-## Testing
-- Service-layer tests: 8/8 balance-math cases pass (`/app/backend/tests/test_balance_math.py`).
-- E2E UI test (testing agent): expense add decreases balance correctly. All 6 pages render. No horizontal scroll at 390px. 100% success, no blocking bugs.
+### Auth & user state (new)
+- `services/auth_service.py`: bcrypt hashing, JWT token issue/verify, register / login / change_password / update_profile / get_user_by_whatsapp.
+- `pages_app/auth.py`: sign-in and create-account tabs on unauthenticated visit.
+- Sidebar shows user name/email and a Sign Out button.
+- Auto-created demo user `demo@example.com / demo123` seeded with 10 expenses, +₹500 balance, one borrow, one lent so first-time visitors see a live-looking app.
+
+### Recurring expenses (new)
+- `services/recurring_service.py`: monthly / weekly rules with day-of-month or day-of-week, optional end date; `run_due(user_id)` posts all missed instances and updates `last_run`.
+- `pages_app/recurring.py`: create rule, pause/activate, delete, or manually "Post any due now".
+- Auto-posts once per session on any page load.
+
+### Quick Add + WhatsApp (new)
+- `services/quickadd_service.py`: natural-language parser (`"Lunch 180 Food"`, `"₹250 Drinks Coffee with mom"`).
+- `pages_app/quick_add.py`: WhatsApp-style chat UI with bubbles, message log persisted in `whatsapp_messages` table. Accepts text or receipt photo (OCR).
+- `webhook_server.py`: FastAPI stub for Twilio inbound webhook — **MOCKED**. Ready to point at Twilio Sandbox by adding `TWILIO_ACCOUNT_SID/AUTH_TOKEN` and running the FastAPI process. Users link their number in Settings → WhatsApp.
+
+### Everything else (from MVP)
+- Dashboard: hero balance card, 4 stat cards, 4 quick-action buttons (Add Expense / Add Balance / Borrow-Lend / Quick Add), category donut, recent transactions.
+- Expenses: Add / Add Balance / Scan Screenshot (Tesseract) / History with filter, sort, search, edit & delete.
+- Borrow & Lend: three tabs, confirm dialogs before repay/receive, balance math verified.
+- Reports: metrics, donut, horizontal bar, monthly-trend line, MoM comparison narrative, rule-based savings tips.
+- Budget & Goals: total + per-category budgets, progress bars, over-budget warnings.
+- Settings: profile, WhatsApp number, categories CRUD, JSON+CSV export/import, change password, danger reset.
+
+## Testing status
+- **Iteration 1** (pre-auth): 100% pass, 8/8 balance-math + 1 full E2E flow.
+- **Iteration 2** (auth + isolation + recurring + quick-add): **100% pass, 12/12 flows**. Auth gate, register, per-user isolation, quick-add valid+invalid, recurring create+post+pause+delete, Settings WhatsApp UI, change-password round-trip, sign-out, negative-balance behaviour — all verified.
 
 ## Backlog / P1
-- Persistent bottom-nav on mobile with FAB for Add Expense.
-- Programmatic tab activation (Streamlit limitation — use session_state + radio workaround).
-- Recurring expense templates.
-- Multi-user auth (currently single-user local).
+- Real Twilio WhatsApp go-live (already wired — just needs credentials & public URL).
+- Password reset via email (Resend / SendGrid integration).
+- Mobile: bottom-nav FAB with persistent Add-Expense.
+- Cloud sync / Google Drive backup.
 
 ## P2 ideas
-- LLM-powered richer savings narrative (currently rule-based).
-- WhatsApp/Telegram bot to add expenses via chat.
-- Cloud sync / backup to Google Drive.
+- LLM-generated savings narrative (Emergent LLM key).
+- Family / shared-wallet mode with per-user sub-accounts.
+- Currency conversion when switching primary currency.
+- SMS-based add via Twilio SMS as an alt to WhatsApp.

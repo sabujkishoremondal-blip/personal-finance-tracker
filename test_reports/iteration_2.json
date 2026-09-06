@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend E2E tests on the Streamlit personal-finance app after JWT auth + per-user isolation + recurring + quick-add + WhatsApp mocked rollout. All 12 critical user flows PASS. Auth gate, register/login, per-user isolation, Quick Add (valid + invalid parser), Recurring create/post/pause/delete, balance math, negative-balance warning, Settings (WhatsApp UI, change-password round-trip), Sign out — all work as specified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Recurring page", "issues": ["When freshly landing on the Recurring page, an empty white pill/card appears just above 'New recurring rule' heading (visible in screenshot). Appears to be an extra st.markdown div wrapper. Cosmetic only."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "auth_service._secret() writes the JWT secret to /app/data/.jwt_secret on first launch when JWT_SECRET env is missing — fine for a personal-use Streamlit app but on a k8s pod restart with a new PVC the secret rotates and invalidates issued tokens. Recommend exposing JWT_SECRET via .env for production.",
+    "app.py always calls _ensure_demo_user() on every request — cheap because register_user short-circuits if user exists, but seed_demo_data is only invoked at creation, which is correct.",
+    "settings.py Danger-zone 'Reset my data' flow was not exercised in this iteration (would have wiped the tester's data mid-run). Main agent may self-test if desired.",
+    "quickadd_service.parse() uses regex fullmatch on token after stripping ',.'; symbols like '₹250' work only because AMOUNT_RE allows an optional currency prefix. Confirmed working with '₹60' + digit-only. Good.",
+    "The Recurring page's empty markdown card (no content between the pf-card open/close before 'New recurring rule') is a cosmetic bug — see screenshot rec_saved.png."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% (12/12 flows)"},
+  "test_credentials": "Demo user: demo@example.com / demo123 (password reset back to demo123 at end of run). Created ephemeral test user e2etest<ts>@example.com / e2etest123 for isolation testing.",
+  "seed_data_creation": "One ephemeral registered user created during test run. Demo user's WhatsApp number was set to +919999999999 during Settings test (not reverted — minor).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All auth+isolation+quick-add+recurring flows are healthy. Streamlit selectors: use `input[aria-label='<Visible label>']` and `[data-testid='stSidebar'] label:has-text('<Nav Item>')` for navigation radio buttons. Both Sign In and Create Account tab panels are rendered simultaneously in the DOM — scope with `.first`/`.last` or by tab-panel index. The webhook_server.py FastAPI stub is deliberately NOT started by supervisor and was not exercised.",
+  "rca of the issue": "N/A — no failures. Two soft observations: (1) `Posted N recurring expense(s)` success toast test-string wasn't found in body after st.rerun() re-rendered the page — but the balance dropped by exactly ₹300 confirming the rule posted, so behavior is correct, only the transient toast is not captured in DOM after rerun. (2) 'WhatsApp number saved' success text similarly not captured post-rerun; but the input persists on reload confirming the save works."
+}
