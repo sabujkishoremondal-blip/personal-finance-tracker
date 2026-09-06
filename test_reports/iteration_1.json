@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend + service-level testing of the Streamlit Personal Finance app. Dashboard loads correctly with seeded demo data showing AVAILABLE BALANCE = ₹1,050 as expected (₹2,000 starting + ₹500 added + ₹500 borrowed - ₹1,950 spent). All 6 sidebar pages (Dashboard, Expenses, Borrow & Lend, Reports, Budget & Goals, Settings) render without errors. All 4 stat cards (This Month Spent ₹1,950 / Added ₹500 / You Owe ₹500 / Friends Owe ₹400) and all 4 quick-action buttons render. Category donut chart and Recent transactions list visible. End-to-end financial flow verified via UI: adding a ₹300 Food expense from Expenses → Add Expense tab correctly decreased the dashboard Available Balance from ₹1,050 to ₹750, and the new 'Test expense' entry appeared in Recent transactions. 8/8 balance-math service tests (which are what the Streamlit UI calls directly) passed: add expense decreases balance, add balance increases, borrow flow increases wallet then repay decreases, friend-owes doesn't change balance until 'received', negative balance is allowed (not blocked), edit updates balance, delete restores balance, delete-debt cleans up related tx. Mobile viewport (390px) on the Dashboard shows scrollWidth == clientWidth (no horizontal scroll). Demo DB was reseeded after tests so the next user sees ₹1,050 again.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mobile (390px) Dashboard", "issues": ["Sidebar is expanded by default and covers the main content on load; user must tap the collapse arrow to see the dashboard. Consider initial_sidebar_state='collapsed' on mobile or auto-collapse for narrow viewports."]},
+      {"screen": "Dashboard 'This month by category'", "issues": ["Empty rounded input-like element appears above the donut chart (line ~89 of dashboard.py opens a pf-card div that renders an empty pill before the plotly figure). Minor cosmetic — consider removing the empty container or adding a section title inside it."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_balance_math.py",
+    "/app/test_reports/pytest/balance_math.xml"
+  ],
+  "action_items": [
+    "No functional bugs found. Only two minor cosmetic/UX suggestions above; safe to ship as-is.",
+    "Optional: consider collapsing the sidebar by default on mobile viewports."
+  ],
+  "critical_code_review_comments": [
+    "Balance is derived from transactions table (no mutable stored value) — good design, single source of truth.",
+    "delete_debt correctly deletes associated balance_transactions rows so wallet math stays consistent — verified by test.",
+    "app.py line 56-58 has a dead for-loop that iterates PAGES but the inner code only assigns 'is_active' with no effect. The actual nav uses st.radio afterwards. Harmless but should be removed.",
+    "database.get_setting/set_setting rely on a settings kv table; ensure init_db is called before any service usage (it is, on app.py boot). Backend tests call init_db in a fixture — OK.",
+    "expenses.py active_exp_tab session-state key is set but Streamlit's st.tabs does not honor a programmatic active tab, so quick-action buttons from dashboard land the user on the Expenses page but always on the first tab (Add Expense) regardless of whether user clicked 'Scan Screenshot' or 'Add Balance'. Consider using st.session_state-driven radio + conditional render, or accept this as a known Streamlit limitation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_balance_math.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8 service tests)", "frontend": "100% smoke + 1 E2E flow verified"},
+  "test_credentials": "N/A - no auth in app",
+  "seed_data_creation": "Demo DB was wiped by balance-math tests and then reseeded via services.demo_service.seed_demo_data(); post-test available_balance() == 1050.0 confirmed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Streamlit app on port 3000 behind preview URL. No FastAPI, no /api endpoints. Use text/label-based selectors — sidebar nav is st.radio with labels like 'Dashboard', 'Expenses', 'Borrow & Lend'. AVAILABLE BALANCE hero on dashboard = ₹1,050 with fresh demo seed. Balance-math regression suite at /app/backend/tests/test_balance_math.py — run: pytest backend/tests/test_balance_math.py -v. Note: running that suite wipes the demo DB; reseed with: python -c \"from database.database import init_db,set_setting,get_conn; from services.demo_service import seed_demo_data; init_db(); [c.execute(f'DELETE FROM {t}') for t in ['expenses','balance_transactions','debts','budgets'] for c in [get_conn().__enter__()]]; set_setting('onboarded','0'); set_setting('starting_balance','0'); seed_demo_data()\". Streamlit st.tabs does not support programmatic tab selection from dashboard quick-actions (minor UX gap, not a bug).",
+  "rca of the issue": "No bugs found — financial math verified correct in both service layer and via end-to-end UI test."
+}
