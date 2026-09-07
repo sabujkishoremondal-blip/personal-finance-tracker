@@ -127,6 +127,16 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
     status TEXT DEFAULT 'saved',    -- saved | needs_review | failed
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
 """
 
 USER_DEFAULT_SETTINGS = {
@@ -148,9 +158,11 @@ def get_setting(user_id: int, key: str, default=None):
             "SELECT value FROM app_settings WHERE user_id=? AND key=?",
             (user_id, key),
         ).fetchone()
-        if row is not None:
-            return row["value"]
+
+    if row is None:
         return default
+
+    return row["value"]
 
 
 def set_setting(user_id: int, key: str, value):

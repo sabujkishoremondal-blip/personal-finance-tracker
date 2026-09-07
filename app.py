@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from database.database import init_db, get_setting
+from database.database import init_db
 from services.auth_service import register_user, get_user_by_email, get_user_by_id
 from services.demo_service import seed_demo_data
 from services.recurring_service import run_due
@@ -38,15 +38,8 @@ def _ensure_demo_user():
 
 _ensure_demo_user()
 
-# Theme (from user setting if logged in, else system default 'light')
-if "theme" not in st.session_state:
-    if "user_id" in st.session_state:
-        st.session_state["theme"] = get_setting(
-            st.session_state["user_id"], "theme", "light"
-        )
-    else:
-        st.session_state["theme"] = "light"
-
+# Premium dark theme only
+st.session_state["theme"] = "dark"
 inject_css()
 
 # ---------- auth gate ----------
@@ -106,20 +99,8 @@ with st.sidebar:
         label_visibility="collapsed",
         key="nav",
     )
-
     st.markdown("---")
-    theme_pick = st.radio(
-        "Theme", ["light", "dark"],
-        index=0 if st.session_state.get("theme", "light") == "light" else 1,
-        horizontal=True, key="theme_radio",
-    )
-    if theme_pick != st.session_state.get("theme"):
-        st.session_state["theme"] = theme_pick
-        from database.database import set_setting
-        set_setting(st.session_state["user_id"], "theme", theme_pick)
-        st.rerun()
-
-    st.markdown("---")
+   
     if st.button("Sign out", type="secondary", use_container_width=True):
         st.session_state.clear()
         st.rerun()

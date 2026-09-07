@@ -139,3 +139,128 @@ def update_profile(user_id: int, name: str = None, whatsapp_number: str = None):
     with get_conn() as conn:
         conn.execute(f"UPDATE users SET {','.join(fields)} WHERE id=?",
                      (*vals, user_id))
+
+
+def create_password_reset_token(email: str):
+    """
+    Create a 6-digit password reset code valid for 15 minutes.
+    Returns (token, error).
+    """
+    user = get_user_by_email(email)
+
+    # Don't reveal whether an email exists.
+    if not user:
+        return None, None
+
+    token = f"{secrets.randbelow(1000000):06d}"
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=15)
+
+    with get_conn() as conn:
+        # Invalidate previous unused tokens
+        conn.execute(
+            """
+            UPDATE password_reset_tokens
+            SET used = 1
+            WHERE user_id = ? AND used = 0
+            """,
+            (user["id"],),
+        )
+
+        conn.execute(
+            """
+            INSERT INTO password_reset_tokens
+            (user_id, token, expires_at, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                user["id"],
+                token,
+                expires_at.isoformat(),
+                now.isoformat(),
+            ),
+        )
+
+    return token, None
+
+
+def verify_password_reset_token(email: str, token: str):
+    """
+    Verify that the reset code is valid and has not expired.
+    Returns the user or None.
+    """
+    user = get_user_by_email(email)
+
+    if not user:
+        return None
+
+    now = datetime.now(timezone.utc)
+
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM password_reset_tokens
+            WHERE user_id = ?
+              AND token = ?
+              AND used = 0
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user["id"], token.strip()),
+        ).fetchone()
+
+    if not row:
+        return None
+
+    try:
+        expires_at = datetime.fromisoformat(row["expires_at"])
+
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if now > expires_at:
+            return None
+
+    except Exception:
+        return None
+
+    return user
+
+
+def reset_password(email: str, token: str, new_password: str):
+    """
+    Reset the user's password using a valid reset code.
+    Returns an error message or None on success.
+    """
+    if len(new_password) < 6:
+        return "New password must be at least 6 characters."
+
+    user = verify_password_reset_token(email, token)
+
+    if not user:
+        return "Invalid or expired reset code."
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            UPDATE users
+            SET password_hash = ?
+            WHERE id = ?
+            """,
+            (hash_password(new_password), user["id"]),
+        )
+
+        # Mark the reset code as used
+        conn.execute(
+            """
+            UPDATE password_reset_tokens
+            SET used = 1
+            WHERE user_id = ?
+              AND token = ?
+            """,
+            (user["id"], token.strip()),
+        )
+
+    return None
